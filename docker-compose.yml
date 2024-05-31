@@ -1,0 +1,120 @@
+version: '3.9'
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: ./airflow_tasks
+    dockerfile: Dockerfile
+  image: ${AIRFLOW_IMAGE_NAME:-extending_airflow:latest}
+  env_file:
+    - .env
+  volumes:
+    - ./airflow_tasks/dags:/opt/airflow/dags
+    - ./airflow_tasks/logs:/opt/airflow/logs
+    # Uncomment to include custom plugins
+#    - ./airflow_tasks/plugins:/opt/airflow/plugins
+  user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
+  networks:
+    - airflow-net
+
+
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    hostname: api
+    container_name: api
+    restart: always
+  depends_on:
+    postgres:
+      condition: service_healthy
+    ports:
+      - '8000:8000'
+    env_file:
+      - .env
+    volumes:
+      - ./api:/home/app
+    networks:
+      - airflow-net
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 30s
+      retries: 50
+    restart: always
+    networks:
+      - airflow-net
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    env_file:
+      - .env
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    ports:
+      - '5433:5432'
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "postgres" ]
+      interval: 5s
+      retries: 5
+    restart: always
+    networks:
+      - airflow-net
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    container_name: airflow-webserver
+    ports:
+      - '8080:8080'
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      - postgres
+      - redis
+      - api
+      - airflow-init
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    container_name: airflow-scheduler
+    restart: always
+    depends_on:
+      - airflow-webserver
+
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    container_name: airflow-init
+    depends_on:
+      - postgres
+      - redis
+      - api
+
+  airflow-worker:
+    <<: *airflow-common
+    container_name: airflow-worker
+    command: celery worker
+    restart: always
+    depends_on:
+      - airflow-scheduler
+
+volumes:
+  postgres-db-volume:
+
+networks:
+  airflow-net:
+    external: true

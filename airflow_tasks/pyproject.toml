@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "tasks-airflow"
+version = "0.1.0"
+description = ""
+authors = ["kooznitsa"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.13"
+aiohttp = {extras = ["speedups"], version = "^3.9.5"}
+pydantic = "^2.7.1"
+pydantic-settings = "^2.2.1"
+uvicorn = {extras = ["standard"], version = "^0.29.0"}
+asyncpg = "^0.29.0"
+psycopg2-binary = "^2.9.9"
+sqlalchemy = "^1.4"
+apache-airflow-providers-celery = "^3.7.0"
+pendulum = "3.0.0"
+apache-airflow = "2.9.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
